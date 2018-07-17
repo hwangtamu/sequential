@@ -12,22 +12,23 @@ Resources:
 import sys
 
 from tensorflow.examples.tutorials.mnist import input_data
-from keras.models import Sequential
+from keras.models import Sequential, Model
 from keras.layers import LSTM, Dense
 from keras.models import load_model
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
+from keras import backend as K
 
 class MnistLSTMClassifier(object):
     def __init__(self):
         # Classifier
         self.time_steps=28 # timesteps to unroll
-        self.n_units=128 # hidden LSTM units
+        self.n_units=16 # hidden LSTM units
         self.n_inputs=28 # rows of 28 pixels (an mnist img is 28x28)
         self.n_classes=10 # mnist classes/labels (0-9)
         self.batch_size=128 # Size of each batch
-        self.n_epochs=5
+        self.n_epochs=20
         # Internal
         self._data_loaded = False
         self._trained = False
@@ -77,7 +78,57 @@ class MnistLSTMClassifier(object):
         test_loss = model.evaluate(x_test, self.mnist.test.labels)
         print(test_loss)
 
-    def visualize(self, model=None, samples=1000):
+    def __hidden(self, model, data):
+        # model = load_model(model) if model else self.model
+        intermediate_layer_model = Model(inputs=model.input, outputs=model.get_layer('lstm_1').output)
+        intermediate_output = intermediate_layer_model.predict(data)
+        return intermediate_output
+
+    def get_hidden(self, model=None, samples=1000):
+        x_test = [x.reshape((-1, self.time_steps, self.n_inputs)) for x in self.mnist.test.images][:samples]
+        x_test = np.array(x_test).reshape((-1, self.time_steps, self.n_inputs))
+
+        model = load_model(model) if model else self.model
+        print(model.summary())
+
+        predictions = model.predict_classes(x_test)
+        y_test = np.argmax(self.mnist.test.labels[:samples], axis=1)
+
+        lstm_model = Sequential()
+        lstm_model.add(LSTM(self.n_units, input_shape=(self.time_steps, self.n_inputs), return_sequences=True))
+        weights = model.layers[0].get_weights()
+        lstm_model.layers[0].set_weights(weights)
+
+        hidden_states = []
+        results = []
+        for i in range(samples):
+            if y_test[i] == 3:
+                hidden_states+=[self.__hidden(lstm_model, np.array(x_test[i].reshape((-1, self.time_steps, self.n_inputs))))]
+                if y_test[i] == predictions[i]:
+                    results += [1]
+                else:
+                    results += [0]
+        return hidden_states, results
+
+    def vis_hidden(self, model=None, samples=100):
+        if self._trained == False and model == None:
+            errmsg = "[!] Error: classifier wasn't trained or classifier path is not precised."
+            print(errmsg, file=sys.stderr)
+            sys.exit(0)
+
+        if self._data_loaded == False:
+            self.__load_data()
+
+        hidden_states, results = self.get_hidden(model, samples)
+
+        for j in range(self.n_units):
+            for i,state in enumerate(hidden_states):
+                color = 'b' if results[i]==1 else 'r'
+                state = np.transpose(state)
+                plt.plot(np.array(list(range(28))), state[j], c=color)
+            plt.show()
+
+    def visualize(self, model=None, samples=100):
         if self._trained == False and model == None:
             errmsg = "[!] Error: classifier wasn't trained or classifier path is not precised."
             print(errmsg, file=sys.stderr)
