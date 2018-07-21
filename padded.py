@@ -22,15 +22,17 @@ from matplotlib import cm
 class MnistLSTMClassifier(object):
     def __init__(self):
         # Classifier
-        self.time_steps=28 # timesteps to unroll
-        self.n_units=32 # hidden LSTM units
-        self.n_inputs=28 # rows of 28 pixels (an mnist img is 28x28)
-        self.n_classes=10 # mnist classes/labels (0-9)
-        self.batch_size=128 # Size of each batch
-        self.n_epochs=20
+        self.time_steps = 28  # timesteps to unroll
+        self.n_units = 32  # hidden LSTM units
+        self.n_inputs = 28  # rows of 28 pixels (an mnist img is 28x28)
+        self.n_classes = 10  # mnist classes/labels (0-9)
+        self.batch_size = 128  # Size of each batch
+        self.n_epochs = 20
         # Internal
         self._data_loaded = False
         self._trained = False
+        self.__load_data()
+        self.lstm_model, self.dense_model = None, None
 
     def __create_model(self):
         self.model = Sequential()
@@ -38,8 +40,8 @@ class MnistLSTMClassifier(object):
         self.model.add(Dense(self.n_classes, activation='softmax'))
 
         self.model.compile(loss='categorical_crossentropy',
-                      optimizer='rmsprop',
-                      metrics=['accuracy'])
+                           optimizer='rmsprop',
+                           metrics=['accuracy'])
 
     def __load_data(self):
         self.mnist = input_data.read_data_sets("mnist", one_hot=True)
@@ -54,10 +56,10 @@ class MnistLSTMClassifier(object):
         x_train = np.array(x_train).reshape((-1, self.time_steps, self.n_inputs))
 
         self.model.fit(x_train, self.mnist.train.labels,
-                  batch_size=self.batch_size, epochs=self.n_epochs, shuffle=False)
+                       batch_size=self.batch_size, epochs=self.n_epochs, shuffle=False)
 
         self._trained = True
-        
+
         if save_model:
             self.model.save("./saved_model/lstm-model_32.h5")
 
@@ -79,40 +81,70 @@ class MnistLSTMClassifier(object):
 
     def __hidden(self, model, data):
         # model = load_model(model) if model else self.model
-        intermediate_layer_model = Model(inputs=model.input, outputs=model.get_layer('lstm_1').output)
+        intermediate_layer_model = Model(inputs=model.input, outputs=model.layers[0].output)
         intermediate_output = intermediate_layer_model.predict(data)
         return intermediate_output
 
-    def get_hidden(self, model=None, num=0,samples=1000, permute=False):
+    def get_hidden(self, model=None, num=0, samples=1000, permute=False, padding=None):
+        step = self.time_steps
         if permute:
-            self.mnist.test.images[0:samples, 23*28:28*28] = 0
-
+            self.mnist.test.images[0:samples, 23 * 28:28 * 28] = 0
         images = self.mnist.test.images
-        x_test = [x.reshape((-1, self.time_steps, self.n_inputs)) for x in images][:samples]
+
+        if padding:
+            images = np.concatenate((self.mnist.test.images, np.zeros((10000,(padding-self.n_inputs)*28))), axis=1)
+            step = padding
+
+        x_test = [x.reshape((-1, self.time_steps, self.n_inputs)) for x in self.mnist.test.images][:samples]
         x_test = np.array(x_test).reshape((-1, self.time_steps, self.n_inputs))
+
+        x_test_padded = [x.reshape((-1, step, self.n_inputs)) for x in images][:samples]
+        x_test_padded = np.array(x_test_padded).reshape((-1, step, self.n_inputs))
+
         model = load_model(model) if model else self.model
-        print(model.summary())
+        # print(model.summary())
 
         predictions = model.predict_classes(x_test)
         y_test = np.argmax(self.mnist.test.labels[:samples], axis=1)
-
-        lstm_model = Sequential()
-        lstm_model.add(LSTM(self.n_units, input_shape=(self.time_steps, self.n_inputs), return_sequences=True))
-        weights = model.layers[0].get_weights()
-        lstm_model.layers[0].set_weights(weights)
+        self.lstm_model, self.dense_model = self.build_models(model)
 
         hidden_states = []
         results = []
+        ids = []
         for i in range(samples):
             if y_test[i] == num:
-                hidden_states+=[self.__hidden(lstm_model, np.array(x_test[i].reshape((-1, self.time_steps, self.n_inputs))))]
+                hidden_states += [
+                    self.__hidden(self.lstm_model, np.array(x_test_padded[i].reshape((-1, step, self.n_inputs))))]
                 if y_test[i] == predictions[i]:
                     results += [1]
                 else:
                     results += [0]
-        return hidden_states, results
+                ids += [i]
+        return hidden_states, results, ids
 
-    def vis_hidden(self, model=None, num=0, samples=100, permute=False):
+    def build_models(self, model=None):
+        if not model:
+            model = self.model
+
+        lstm_model = Sequential()
+        lstm_model.add(LSTM(self.n_units, input_shape=(None, self.n_inputs), return_sequences=True))
+        weights = model.layers[0].get_weights()
+        lstm_model.layers[0].set_weights(weights)
+
+        dense_model = Sequential()
+        dense_model.add(Dense(self.n_classes, input_dim=self.n_units, activation='softmax'))
+        weights = model.layers[1].get_weights()
+        dense_model.layers[0].set_weights(weights)
+
+        return lstm_model, dense_model
+
+    def real_time_predict(self, vec):
+        dense_model = self.dense_model
+        # output = dense_model.predict(vec)
+        result = dense_model.predict_classes(vec)
+        return result[28], list(result)
+
+    def vis_hidden(self, model=None, num=0, samples=100, permute=False, padding=None):
         if self._trained == False and model == None:
             errmsg = "[!] Error: classifier wasn't trained or classifier path is not precised."
             print(errmsg, file=sys.stderr)
@@ -121,11 +153,14 @@ class MnistLSTMClassifier(object):
         if self._data_loaded == False:
             self.__load_data()
 
-        hidden_states, results = self.get_hidden(model, num, samples, permute)
+        hidden_states, results = self.get_hidden(model, num, samples, permute, padding)
+
+        if padding:
+            self.time_steps = padding
 
         for j in range(self.n_units):
-            for i,state in enumerate(hidden_states):
-                color = 'b' if results[i]==1 else 'r'
+            for i, state in enumerate(hidden_states):
+                color = 'b' if results[i] == 1 else 'r'
                 state = np.transpose(state)
                 plt.plot(np.array(list(range(self.time_steps))), state[j], c=color)
             plt.show()
@@ -140,7 +175,7 @@ class MnistLSTMClassifier(object):
             self.__load_data()
 
         if permute:
-            self.mnist.test.images[0:samples, 20*28:28*28] = 0
+            self.mnist.test.images[0:samples, 20 * 28:28 * 28] = 0
 
         images = self.mnist.test.images
         x_test = [x.reshape((-1, self.time_steps, self.n_inputs)) for x in images][:samples]
@@ -152,14 +187,14 @@ class MnistLSTMClassifier(object):
 
         fig = plt.figure()
         p = []
-        for i,j in enumerate(predictions-y_test):
-            #if j>0:
-            if y_test[i]==num:
-                p+=[i]
-        for j,i in enumerate(p):
-            ax = fig.add_subplot(1,len(p),j+1)
-            ax.matshow(x_test[i], cmap = cm.binary)
-            ax.set_title("%s predicted as %s" % (y_test[i],predictions[i]))
+        for i, j in enumerate(predictions - y_test):
+            if j>0:
+            #if y_test[i] == num:
+                p += [i]
+        for j, i in enumerate(p):
+            ax = fig.add_subplot(1, len(p), j + 1)
+            ax.matshow(x_test[i], cmap=cm.binary)
+            ax.set_title("%s predicted as %s" % (y_test[i], predictions[i]))
             ax.set_xticks([])
             ax.set_yticks([])
         plt.show()
@@ -170,4 +205,4 @@ if __name__ == "__main__":
     lstm_classifier.train(save_model=True)
     lstm_classifier.evaluate()
     # Load a trained model.
-    #lstm_classifier.evaluate(model="./saved_model/lstm-model.h5")
+    # lstm_classifier.evaluate(model="./saved_model/lstm-model.h5")
