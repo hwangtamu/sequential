@@ -23,11 +23,11 @@ class MnistLSTMClassifier(object):
     def __init__(self):
         # Classifier
         self.time_steps=28 # timesteps to unroll
-        self.n_units=32 # hidden LSTM units
+        self.n_units=256 # hidden LSTM units
         self.n_inputs=28 # rows of 28 pixels (an mnist img is 28x28)
         self.n_classes=10 # mnist classes/labels (0-9)
         self.batch_size=128 # Size of each batch
-        self.n_epochs=20
+        self.n_epochs=50
         # Internal
         self._data_loaded = False
         self._trained = False
@@ -59,7 +59,7 @@ class MnistLSTMClassifier(object):
         self._trained = True
         
         if save_model:
-            self.model.save("./saved_model/lstm-model_32.h5")
+            self.model.save("./saved_model/lstm-model_256.h5")
 
     def evaluate(self, model=None):
         if self._trained == False and model == None:
