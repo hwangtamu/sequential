@@ -140,9 +140,10 @@ class MnistLSTMClassifier(object):
 
     def real_time_predict(self, vec):
         dense_model = self.dense_model
-        # output = dense_model.predict(vec)
+        output = dense_model.predict(vec)
+        output = [max(softmax(x)) for x in output]
         result = dense_model.predict_classes(vec)
-        return result[28], list(result)
+        return result[28], list(result), output
 
     def vis_hidden(self, model=None, num=0, samples=100, permute=False, padding=None):
         if self._trained == False and model == None:
@@ -153,7 +154,8 @@ class MnistLSTMClassifier(object):
         if self._data_loaded == False:
             self.__load_data()
 
-        hidden_states, results = self.get_hidden(model, num, samples, permute, padding)
+        hidden_states, results, _ = self.get_hidden(
+            model=model, num=num, samples=samples, permute=permute, padding=padding)
 
         if padding:
             self.time_steps = padding
@@ -198,6 +200,12 @@ class MnistLSTMClassifier(object):
             ax.set_xticks([])
             ax.set_yticks([])
         plt.show()
+
+
+def softmax(x, axis=None):
+    x = x - x.max(axis=axis, keepdims=True)
+    y = np.exp(x)
+    return y / y.sum(axis=axis, keepdims=True)
 
 
 if __name__ == "__main__":

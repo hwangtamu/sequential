@@ -6,6 +6,7 @@ from utils import Data
 
 def real_time_pred(model=None, num=None, sample=100, padding=None):
     lstm_classifier = MnistLSTMClassifier()
+    d = Data()
     if num:
         hidden_states, results, ids = lstm_classifier.get_hidden(model=model, num=num, samples=sample, padding=padding)
         for i in range(len(hidden_states)):
@@ -16,12 +17,16 @@ def real_time_pred(model=None, num=None, sample=100, padding=None):
             hidden_states, results, ids = lstm_classifier.get_hidden(model=model, num=n, samples=sample, padding=padding)
             for i in range(len(hidden_states)):
                 for t in hidden_states[i]:
-                    print(ids[i], n, lstm_classifier.real_time_predict(t))
+                    pred, tmp, tmp_o = lstm_classifier.real_time_predict(t)
+                    print(ids[i], n, pred, [(tmp[x], tmp_o[x]) for x in range(padding) if x%4 == 0])
+                    # if n!=pred:
+                    #     d.visualize_by_id(ids[i])
+
 
 if __name__=="__main__":
     model = "./saved_model/lstm-model_32.h5"
     #lstm_classifier = MnistLSTMClassifier()
     #lstm_classifier.visualize(model, samples=1000)
-    real_time_pred(model=model, sample=300, padding=50)
+    real_time_pred(model=model, sample=1000, padding=150)
     #d = Data()
     #d.visualize_by_id(241)
