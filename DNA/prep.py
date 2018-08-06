@@ -2,8 +2,7 @@ from tensorflow.examples.tutorials.mnist import input_data
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
-import csv
-from collections import Counter
+import csv, random
 
 
 class Data(object):
@@ -68,22 +67,23 @@ class Splice:
         self.train = {}
         self.test = {}
         self.split()
+
     def convert(self):
         """
         convert DNA sequences to numpy arrays
         :param p: csv file path
         :return:
         """
-        num_1, num_2 = np.identity(4), np.identity(len(self.result))
         with open(self.path) as csvfile:
             reader = csv.reader(csvfile)
             d = []
             for row in reader:
                 d+=[row]
 
+            random.shuffle(d)
+
             self.x = np.zeros((len(d),len(d[0][2]),4))
             self.y = np.zeros((len(d),len(self.result)))
-            self.count = Counter([x[0] for x in d])
             for i in range(len(d)):
                 tmp = [self.base[x] for x in d[i][2].strip()]
                 for j in range(len(tmp)):
@@ -114,19 +114,9 @@ class Splice:
 
     def split(self):
         self.convert()
-        c1, c2, c3 = self.count['EI'], self.count['IE'], self.count['N']
-        x = np.split(self.x,[int(c1*0.8), c1, c1+int(c2*0.8), c1+c2, c1+c2+int(c3*0.8)])
-        y = np.split(self.y,[int(c1*0.8), c1, c1+int(c2*0.8), c1+c2, c1+c2+int(c3*0.8)])
 
-        self.train['x'] = np.vstack((x[0], x[2], x[4]))
-        self.train['y'] = np.vstack((y[0], y[2], y[4]))
-        self.test['x'] = np.vstack((x[1], x[3], x[5]))
-        self.test['y'] = np.vstack((y[1], y[3], y[5]))
-
-        p = np.random.permutation(len(self.train['x']))
-        self.train['x'] = self.train['x'][p]
-        self.train['y'] = self.train['y'][p]
-
+        self.train['x'], self.test['x'] = self.x[:int(self.x.shape[0]*0.8)],self.x[int(self.x.shape[0]*0.8):]
+        self.train['y'], self.test['y'] = self.x[:int(self.y.shape[0]*0.8)],self.y[int(self.y.shape[0]*0.8):]
 
 
 if __name__=="__main__":

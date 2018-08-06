@@ -11,23 +11,24 @@ Resources:
 # Imports
 import sys
 
-from tensorflow.examples.tutorials.mnist import input_data
 from keras.models import Sequential, Model
 from keras.layers import LSTM, Dense
 from keras.models import load_model
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
+from utils import Splice
+
 
 class MnistLSTMClassifier(object):
     def __init__(self):
         # Classifier
-        self.time_steps = 28  # timesteps to unroll
-        self.n_units = 8  # hidden LSTM units
-        self.n_inputs = 28  # rows of 28 pixels (an mnist img is 28x28)
-        self.n_classes = 10  # mnist classes/labels (0-9)
-        self.batch_size = 128  # Size of each batch
-        self.n_epochs = 20
+        self.time_steps = 75
+        self.n_units = 128
+        self.n_inputs = 4
+        self.n_classes = 3
+        self.batch_size = 128
+        self.n_epochs = 150
         # Internal
         self._data_loaded = False
         self._trained = False
@@ -39,12 +40,12 @@ class MnistLSTMClassifier(object):
         self.model.add(LSTM(self.n_units, input_shape=(self.time_steps, self.n_inputs)))
         self.model.add(Dense(self.n_classes, activation='softmax'))
 
-        self.model.compile(loss='mse',
+        self.model.compile(loss='categorical_crossentropy',
                            optimizer='rmsprop',
-                           metrics=['mse'])
+                           metrics=['accuracy'])
 
     def __load_data(self):
-        self.mnist = input_data.read_data_sets("mnist", one_hot=True)
+        self.splice = Splice('splice.csv')
         self._data_loaded = True
 
     def train(self, save_model=False):
@@ -52,16 +53,18 @@ class MnistLSTMClassifier(object):
         if self._data_loaded == False:
             self.__load_data()
 
-        x_train = [x.reshape((-1, self.time_steps, self.n_inputs)) for x in self.mnist.train.images]
-        x_train = np.array(x_train).reshape((-1, self.time_steps, self.n_inputs))
+        x_train = self.splice.train['x']
+        x_train = x_train.reshape((-1, x_train.shape[0], x_train.shape[1]))
 
-        self.model.fit(x_train, self.mnist.train.labels,
+        y_train = self.splice.train['y']
+
+        self.model.fit(x_train, y_train,
                        batch_size=self.batch_size, epochs=self.n_epochs, shuffle=False)
 
         self._trained = True
 
         if save_model:
-            self.model.save("./saved_model/lstm-model_8 _mse.h5")
+            self.model.save("./saved_model/lstm-model_256.h5")
 
     def evaluate(self, model=None):
         if self._trained == False and model == None:
@@ -72,11 +75,13 @@ class MnistLSTMClassifier(object):
         if self._data_loaded == False:
             self.__load_data()
 
-        x_test = [x.reshape((-1, self.time_steps, self.n_inputs)) for x in self.mnist.test.images]
-        x_test = np.array(x_test).reshape((-1, self.time_steps, self.n_inputs))
+        x_test = self.splice.test['x']
+        x_test = x_test.reshape((-1, x_test.shape[0], x_test.shape[1]))
+
+        y_test = self.splice.test['y']
 
         model = load_model(model) if model else self.model
-        test_loss = model.evaluate(x_test, self.mnist.test.labels)
+        test_loss = model.evaluate(x_test, y_test)
         print(test_loss)
 
     def __hidden(self, model, data):
@@ -85,7 +90,7 @@ class MnistLSTMClassifier(object):
         intermediate_output = intermediate_layer_model.predict(data)
         return intermediate_output
 
-    def get_hidden(self, model=None, num=0, samples=1000, permute=False, padding=None, test=False, mc=False):
+    def get_hidden(self, model=None, num=0, samples=1000, padding=None, test=False, mc=False):
         """
 
         :param model: Keras model
@@ -98,33 +103,30 @@ class MnistLSTMClassifier(object):
         :return:
         """
         step = self.time_steps
-        if permute:
-            self.mnist.test.images[0:samples, 23 * 28:28 * 28] = 0
-            self.mnist.train.images[0:samples, 23 * 28:28 * 28] = 0
 
         if test:
-            images = self.mnist.test.images
-            labels = np.argmax(self.mnist.test.labels[:samples], axis=1)
+            images = self.splice.test['x']
+            labels = np.argmax(self.splice.test['y'][:samples], axis=1)
         else:
-            images = self.mnist.train.images
-            labels = np.argmax(self.mnist.train.labels[:samples], axis=1)
+            images = self.splice.train['x']
+            labels = np.argmax(self.splice.train['y'][:samples], axis=1)
 
-        if mc:
-            images = np.random.rand(images.shape[0], images.shape[1])
+        # if mc:
+        #     images = np.random.rand(images.shape[0], images.shape[1])
 
-        x_test = [x.reshape((-1, self.time_steps, self.n_inputs)) for x in images][:samples]
-        x_test = np.array(x_test).reshape((-1, self.time_steps, self.n_inputs))
+        x_test = images
 
         if padding:
-            images = np.concatenate((images, np.zeros((images.shape[0],(padding-self.n_inputs)*28))), axis=1)
+            images = np.hstack((images, np.zeros((images.shape[0],padding-self.time_steps, 4))))
             step = padding
 
-        x_test_padded = [x.reshape((-1, step, self.n_inputs)) for x in images][:samples]
-        x_test_padded = np.array(x_test_padded).reshape((-1, step, self.n_inputs))
+        x_test_padded = images
 
         model = load_model(model) if model else self.model
         # print(model.summary())
 
+        x_test = x_test.reshape((-1, x_test.shape[1], x_test.shape[2]))
+        x_test_padded = x_test_padded.reshape((-1, x_test_padded.shape[1], x_test_padded.shape[2]))
         predictions = model.predict_classes(x_test)
         y_test = labels
         self.lstm_model, self.dense_model = self.build_models(model)
@@ -178,8 +180,7 @@ class MnistLSTMClassifier(object):
         if self._data_loaded == False:
             self.__load_data()
 
-        hidden_states, results, _ = self.get_hidden(
-            model=model, num=num, samples=samples, permute=permute, padding=padding)
+        hidden_states, results, _ = self.get_hidden(model=model, num=num, samples=samples, padding=padding)
 
         if padding:
             self.time_steps = padding
