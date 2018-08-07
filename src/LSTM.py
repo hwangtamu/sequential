@@ -100,16 +100,15 @@ class LSTMClassifier(object):
     def get_hidden_states(self,
                           x,
                           samples,
-                          model=None):
-        step = self.time_steps
+                          padding=None,
+                          predict=False):
 
-        model = load_model(model) if model else self.model
-        self.build_models(model)
-
+        step = padding if padding>self.time_steps else self.time_steps
         hidden_states = []
 
         for i in range(samples):
-            hidden_states += [hidden(self.lstm_model, np.array(x[i].reshape((-1, step, self.n_inputs))))]
+            t = self.lstm_model.predict(np.array(x[i].reshape((-1, step, self.n_inputs))))
+            hidden_states += [t]
         return hidden_states
 
 
@@ -119,25 +118,30 @@ def hidden(model, data):
     intermediate_output = intermediate_layer_model.predict(data)
     return intermediate_output
 
+
 class MnistLSTMClassifier(LSTMClassifier):
     def __init__(self):
         LSTMClassifier.__init__(self,
                                 time_steps=28,
-                                n_units=128,
+                                n_units=32,
                                 n_inputs=28,
-                                n_classes=10)
+                                n_classes=10,
+                                n_epochs=20)
 
     def __load_data(self):
         self.load_data('mnist')
+
+        x_train = [x.reshape((-1, self.time_steps, self.n_inputs)) for x in self.mnist.train.images]
+        self.x_train = np.array(x_train).reshape((-1, self.time_steps, self.n_inputs))
+
+        x_test = [x.reshape((-1, self.time_steps, self.n_inputs)) for x in self.mnist.test.images]
+        self.x_test = np.array(x_test).reshape((-1, self.time_steps, self.n_inputs))
 
     def train(self, save_model=False):
         if not self._data_loaded:
             self.__load_data()
 
-        x_train = [x.reshape((-1, self.time_steps, self.n_inputs)) for x in self.mnist.train.images]
-        x_train = np.array(x_train).reshape((-1, self.time_steps, self.n_inputs))
-
-        self.train_model(x_train, self.mnist.train.labels, p="./saved_model/lstm-model_256.h5", save_model=save_model)
+        self.train_model(self.x_train, self.mnist.train.labels, p="./saved_model/lstm-model_32.h5", save_model=save_model)
 
     def evaluate(self, model=None):
         if self._trained == False and model == None:
@@ -148,22 +152,45 @@ class MnistLSTMClassifier(LSTMClassifier):
         if not self._data_loaded:
             self.__load_data()
 
-        x_test = [x.reshape((-1, self.time_steps, self.n_inputs)) for x in self.mnist.test.images]
-        x_test = np.array(x_test).reshape((-1, self.time_steps, self.n_inputs))
+        self.eval_model(self.x_test, self.mnist.test.labels)
 
-        self.eval_model(x_test, self.mnist.test.labels)
-
-    def real_time_predict(self, vec, num=None):
+    def make_prediction(self, vec, num=None):
         output = self.dense_model.predict(vec)
         if num == None:
             output = [max(x) for x in output]
         else:
             output = [x[num] for x in output]
         result = self.dense_model.predict_classes(vec)
-        return result[28], list(result), output
+        return result[0], output[0]
+
+    def real_time_predict(self, model=None, test=True, sample=1000, padding=None):
+        if not self._data_loaded:
+            self.__load_data()
+
+        x = self.x_test[:sample] if test else self.x_train[:sample]
+
+        if padding and padding>self.time_steps:
+            x = np.hstack((x,np.zeros((len(x), padding-self.time_steps, self.n_inputs))))
+
+        truth = np.argmax(self.mnist.test.labels[:sample], axis=1) if test \
+            else np.argmax(self.mnist.train.labels[:sample], axis=1)
+
+        model = load_model(model) if model else self.model
+        self.build_models(model)
+
+        hidden_states = self.get_hidden_states(x, samples=sample, padding=padding)
+
+        for i in range(sample):
+            stdout = [truth[i]]
+            for j in range(max(padding,self.time_steps)):
+                res, out = self.make_prediction(np.reshape(hidden_states[i][0][j], (-1, self.n_units)))
+                if j%4==0:
+                    stdout += [tuple([res, float('%.3f' % out)])]
+            print(stdout)
 
 
-class MnistLSTMClassifier(object):
+
+class MnistLSTMClassifier2(object):
     def __init__(self):
         # Classifier
         self.time_steps = 75
