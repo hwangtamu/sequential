@@ -82,7 +82,7 @@ class Splice:
 
             random.shuffle(d)
 
-            self.x = np.zeros((len(d),len(d[0][2]),4))
+            self.x = np.zeros((len(d),60,4))
             self.y = np.zeros((len(d),len(self.result)))
             for i in range(len(d)):
                 tmp = [self.base[x] for x in d[i][2].strip()]

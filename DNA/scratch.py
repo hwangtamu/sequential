@@ -1,5 +1,7 @@
-from src.LSTM import MnistLSTMClassifier
+from src.LSTM import *
 
-c = MnistLSTMClassifier()
-p="./saved_model/lstm-model_32.h5"
-c.real_time_predict(model=p, padding=150)
+c = DNALSTM()
+# c.train(save_model=True)
+p="./saved_model/lstm-dna_128.h5"
+# c.evaluate(model=p)
+c.real_time_predict(model=p, sample=200, padding=500)
