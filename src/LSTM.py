@@ -47,7 +47,7 @@ class LSTMClassifier(object):
         if task=='mnist':
             self.mnist = input_data.read_data_sets("mnist", one_hot=True)
         if task=='dna':
-            self.splice = Splice('splice.csv')
+            self.splice = Splice('splice.csv', n_class=self.n_classes)
 
         self._data_loaded=True
 
@@ -190,7 +190,7 @@ class DNALSTM(LSTMClassifier):
                                 time_steps=60,
                                 n_units=128,
                                 n_inputs=4,
-                                n_classes=3,
+                                n_classes=2,
                                 n_epochs=100)
 
     def __load_data(self):

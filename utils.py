@@ -58,7 +58,7 @@ class Data(object):
 
 class Splice:
     def __init__(self,
-                 p):
+                 p, n_class=2):
         self.base = {'A':0,'T':1,'G':2,'C':3,'N':4,'D':5,'R':6,'S':7}
         self.result = {'EI':0,'IE':1,'N':2}
         self.x = None
@@ -68,22 +68,31 @@ class Splice:
         self.train = {}
         self.test = {}
         self.split()
-    def convert(self):
+        self.n_class = n_class
+
+    def convert(self, n_class=2):
         """
         convert DNA sequences to numpy arrays
         :param p: csv file path
+        :param n_class: number of classes
         :return:
         """
-        num_1, num_2 = np.identity(4), np.identity(len(self.result))
         with open(self.path) as csvfile:
             reader = csv.reader(csvfile)
             d = []
             for row in reader:
                 d+=[row]
+            if n_class==2:
+                dd = []
+                for i in range(len(d)):
+                    if d[i][0] in ['EI','IE']:
+                        dd+=[d[i]]
+                d = dd
+
             random.shuffle(d)
 
             self.x = np.zeros((len(d),len(d[0][2].strip()),4))
-            self.y = np.zeros((len(d),len(self.result)))
+            self.y = np.zeros((len(d),n_class))
             self.count = Counter([x[0] for x in d])
             for i in range(len(d)):
                 tmp = [self.base[x] for x in d[i][2].strip()]
