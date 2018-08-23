@@ -112,10 +112,10 @@ class LSTMClassifier(object):
 
 
 class MnistLSTM(LSTMClassifier):
-    def __init__(self):
+    def __init__(self, n_units):
         LSTMClassifier.__init__(self,
                                 time_steps=28,
-                                n_units=32,
+                                n_units=n_units,
                                 n_inputs=28,
                                 n_classes=10,
                                 n_epochs=20)
@@ -135,7 +135,7 @@ class MnistLSTM(LSTMClassifier):
 
         self.train_model(self.x_train,
                          self.mnist.train.labels,
-                         p="./saved_model/lstm-model_32.h5",
+                         p="./saved_model/lstm-mnist"+str(self.n_units)+".h5",
                          save_model=save_model)
 
     def evaluate(self, model=None):
@@ -185,10 +185,10 @@ class MnistLSTM(LSTMClassifier):
 
 
 class DNALSTM(LSTMClassifier):
-    def __init__(self):
+    def __init__(self, n_units):
         LSTMClassifier.__init__(self,
                                 time_steps=60,
-                                n_units=128,
+                                n_units=n_units,
                                 n_inputs=4,
                                 n_classes=2,
                                 n_epochs=100)
@@ -206,7 +206,7 @@ class DNALSTM(LSTMClassifier):
 
         self.train_model(self.x_train,
                          self.y_train,
-                         p="./saved_model/lstm-dna_128.h5",
+                         p="./saved_model/lstm-dna_"+str(self.n_units)+".h5",
                          save_model=save_model)
 
     def evaluate(self, model=None):
@@ -248,9 +248,9 @@ class DNALSTM(LSTMClassifier):
             stdout = []
             for j in range(max(padding,self.time_steps)):
                 res, out = self.make_prediction(np.reshape(hidden_states[i][0][j], (-1, self.n_units)))
-                if j%10==0:
-                    stdout += [tuple([res, float('%.3f' % out)])]
+                #if j%1==0:
+                stdout += [tuple([res, float('%.3f' % out)])]
                 if j==self.time_steps:
                     stdout = [res] + stdout
-            stdout = [truth[i]] + stdout
+            stdout = [self.splice.x_raw[i], truth[i]] + stdout
             print(stdout)

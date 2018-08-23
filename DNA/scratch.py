@@ -1,7 +1,8 @@
 from src.LSTM import *
 
-c = DNALSTM()
-#c.train(save_model=True)
-p="./saved_model/lstm-dna_128.h5"
-#c.evaluate(model=p)
-c.real_time_predict(model=p, sample=200, padding=500)
+for i in [4,6,8,10,12,16,32,64,128]:
+    p="./saved_model/lstm-dna_"+str(i)+".h5"
+    c = DNALSTM(i)
+    #c.train(save_model=True)
+    c.evaluate(model=p)
+    # c.real_time_predict(model=p, sample=307, padding=61)

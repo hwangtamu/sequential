@@ -62,6 +62,9 @@ class Splice:
         self.base = {'A':0,'T':1,'G':2,'C':3,'N':4,'D':5,'R':6,'S':7}
         self.result = {'EI':0,'IE':1,'N':2}
         self.x = None
+        self.x_raw = []
+        self.x_raw_train = None
+        self.x_raw_test = None
         self.y = None
         self.path = p
         self.count = None
@@ -89,12 +92,14 @@ class Splice:
                         dd+=[d[i]]
                 d = dd
 
+            random.seed(0)
             random.shuffle(d)
 
             self.x = np.zeros((len(d),len(d[0][2].strip()),4))
             self.y = np.zeros((len(d),n_class))
             self.count = Counter([x[0] for x in d])
             for i in range(len(d)):
+                self.x_raw += [d[i][2].strip()]
                 tmp = [self.base[x] for x in d[i][2].strip()]
                 for j in range(len(tmp)):
                     if tmp[j]==4:
@@ -126,6 +131,7 @@ class Splice:
         self.convert()
         self.train['x'], self.test['x'] = self.x[:int(self.x.shape[0] * 0.8)], self.x[int(self.x.shape[0] * 0.8):]
         self.train['y'], self.test['y'] = self.y[:int(self.y.shape[0] * 0.8)], self.y[int(self.y.shape[0] * 0.8):]
+        self.x_raw_train, self.x_raw_test = self.x_raw[:int(self.x.shape[0] * 0.8)], self.x_raw[int(self.x.shape[0] * 0.8):]
 
 
 
