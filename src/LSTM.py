@@ -17,6 +17,7 @@ from keras.layers import LSTM, Dense
 from keras.models import load_model
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import axes3d
 from mpl_toolkits import mplot3d
 from matplotlib import animation
 from matplotlib import cm
@@ -314,8 +315,11 @@ class DNALSTM(LSTMClassifier):
 
         anim = animation.FuncAnimation(fig, animate, init_func=init,
                                        frames=500, interval=30, blit=True)
-
-        plt.show()
+        ax.view_init(45, 45)
+        Writer = animation.writers['ffmpeg']
+        writer = Writer(fps=15, metadata=dict(artist='Me'), bitrate=1800)
+        anim.save(str(self.n_units)+'.mp4', dpi=80, writer=writer)
+        # plt.show()
 
 
 
