@@ -17,6 +17,8 @@ from keras.layers import LSTM, Dense
 from keras.models import load_model
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits import mplot3d
+from matplotlib import animation
 from matplotlib import cm
 from tensorflow.examples.tutorials.mnist import input_data
 from utils import Splice
@@ -185,12 +187,12 @@ class MnistLSTM(LSTMClassifier):
 
 
 class DNALSTM(LSTMClassifier):
-    def __init__(self, n_units):
+    def __init__(self, n_units, n_classes):
         LSTMClassifier.__init__(self,
                                 time_steps=60,
                                 n_units=n_units,
                                 n_inputs=4,
-                                n_classes=2,
+                                n_classes=n_classes,
                                 n_epochs=100)
 
     def __load_data(self):
@@ -206,7 +208,7 @@ class DNALSTM(LSTMClassifier):
 
         self.train_model(self.x_train,
                          self.y_train,
-                         p="./saved_model/lstm-dna_"+str(self.n_units)+".h5",
+                         p="./saved_model/lstm-dna_b_"+str(self.n_classes)+"_"+str(self.n_units)+".h5",
                          save_model=save_model)
 
     def evaluate(self, model=None):
@@ -229,7 +231,34 @@ class DNALSTM(LSTMClassifier):
         result = self.dense_model.predict_classes(vec)
         return result[0], output[0]
 
-    def real_time_predict(self, model=None, test=True, sample=100, padding=None):
+    def real_time_predict(self, model=None, test=True, sample=100, padding=None, output_range=None):
+        if not self._data_loaded:
+            self.__load_data()
+
+        x = self.x_test[:sample] if test else self.x_train[:sample]
+
+        if padding and padding>self.time_steps:
+            x = np.hstack((x,np.zeros((len(x), padding-self.time_steps, self.n_inputs))))
+        truth = np.argmax(self.y_test[:sample], axis=1) if test \
+            else np.argmax(self.y_train[:sample], axis=1)
+        model = load_model(model) if model else self.model
+        self.build_models(model)
+
+        hidden_states = self.get_hidden_states(x, samples=sample, padding=padding)
+        for i in range(sample):
+            stdout = []
+            for j in range(max(padding,self.time_steps)):
+                res, out = self.make_prediction(np.reshape(hidden_states[i][0][j], (-1, self.n_units)))
+                _out = self.dense_model.predict(np.reshape(hidden_states[i][0][j], (-1, self.n_units)))
+                if j in output_range:
+                    #stdout += [tuple([res, float('%.3f' % out)])]
+                    stdout+=[tuple([float('%.3f' % x) for x in _out[0]])]
+                if j==self.time_steps:
+                    stdout = [res] + stdout
+            stdout = [self.splice.x_raw[i], truth[i]] + stdout
+            print(stdout)
+
+    def visualize(self, model=None, test=True, sample=100, padding=1000):
         if not self._data_loaded:
             self.__load_data()
 
@@ -244,13 +273,51 @@ class DNALSTM(LSTMClassifier):
 
         hidden_states = self.get_hidden_states(x, samples=sample, padding=padding)
 
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        colors = ['b', 'r', 'g']
+
+        lines = sum([ax.plot([], [], [], '-', alpha=0.5)
+                     for _ in range(sample)], [])
+        pts = sum([ax.plot([], [], [], 'o')
+                   for _ in range(sample)], [])
+        a = []
         for i in range(sample):
-            stdout = []
-            for j in range(max(padding,self.time_steps)):
-                res, out = self.make_prediction(np.reshape(hidden_states[i][0][j], (-1, self.n_units)))
-                #if j%1==0:
-                stdout += [tuple([res, float('%.3f' % out)])]
-                if j==self.time_steps:
-                    stdout = [res] + stdout
-            stdout = [self.splice.x_raw[i], truth[i]] + stdout
-            print(stdout)
+            a += [self.dense_model.predict(hidden_states[i][0])]
+            # ax.plot3D(x, y, z, c=colors[truth[i]])
+            # for j in range(len(x)):
+            #     ax.scatter3D(x[j], y[j], z[j], c=colors[truth[i]], alpha=j / len(x))
+
+        def init():
+            for line, pt in zip(lines, pts):
+                line.set_data([], [])
+                line.set_3d_properties([])
+
+                pt.set_data([], [])
+                pt.set_3d_properties([])
+            return lines + pts
+
+        def animate(i):
+            i = (2 * i) % padding
+
+            for line, pt, d in zip(lines, pts, range(len(a))):
+                x, y, z = a[d][:, 0][:i+1], a[d][:, 1][:i+1], a[d][:, 2][:i+1]
+                line.set_data(x, y)
+                line.set_3d_properties(z)
+                line.set_color(colors[truth[d]])
+                pt.set_data(x[-1], y[-1])
+                pt.set_3d_properties(z[-1])
+                pt.set_color(colors[truth[d]])
+
+            fig.canvas.draw()
+            return lines + pts
+
+        anim = animation.FuncAnimation(fig, animate, init_func=init,
+                                       frames=500, interval=30, blit=True)
+
+        plt.show()
+
+
+
+
+
