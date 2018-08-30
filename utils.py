@@ -92,7 +92,7 @@ class Splice:
                         dd+=[d[i]]
                 d = dd
 
-            # random.seed(0)
+            random.seed(0)
             random.shuffle(d)
 
             self.x = np.zeros((len(d),len(d[0][2].strip()),4))

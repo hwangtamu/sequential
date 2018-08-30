@@ -10,7 +10,7 @@ Resources:
 """
 
 # Imports
-import sys
+import sys, os
 
 from keras.models import Sequential, Model
 from keras.layers import LSTM, Dense
@@ -188,7 +188,8 @@ class MnistLSTM(LSTMClassifier):
 
 
 class DNALSTM(LSTMClassifier):
-    def __init__(self, n_units, n_classes):
+    def __init__(self, n_units, n_classes, indicator):
+        self.indicator = indicator
         LSTMClassifier.__init__(self,
                                 time_steps=60,
                                 n_units=n_units,
@@ -209,7 +210,7 @@ class DNALSTM(LSTMClassifier):
 
         self.train_model(self.x_train,
                          self.y_train,
-                         p="./saved_model/lstm-dna_b_"+str(self.n_classes)+"_"+str(self.n_units)+".h5",
+                         p="./saved_model/lstm-dna_"+self.indicator+"_"+str(self.n_classes)+"_"+str(self.n_units)+".h5",
                          save_model=save_model)
 
     def evaluate(self, model=None):
@@ -267,8 +268,10 @@ class DNALSTM(LSTMClassifier):
 
         if padding and padding>self.time_steps:
             x = np.hstack((x,np.zeros((len(x), padding-self.time_steps, self.n_inputs))))
+
         truth = np.argmax(self.y_test[:sample], axis=1) if test \
             else np.argmax(self.y_train[:sample], axis=1)
+
         model = load_model(model) if model else self.model
         self.build_models(model)
 
@@ -277,14 +280,17 @@ class DNALSTM(LSTMClassifier):
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
         colors = ['b', 'r', 'g']
-
+        colors_f = ['c', 'm', 'y']
         lines = sum([ax.plot([], [], [], '-', alpha=0.5)
                      for _ in range(sample)], [])
         pts = sum([ax.plot([], [], [], 'o')
                    for _ in range(sample)], [])
         a = []
+        prediction = []
         for i in range(sample):
-            a += [self.dense_model.predict(hidden_states[i][0])]
+            vec = self.dense_model.predict(hidden_states[i][0])
+            prediction += [np.argmax(vec[self.time_steps]) == truth[i]]
+            a += [vec]
             # ax.plot3D(x, y, z, c=colors[truth[i]])
             # for j in range(len(x)):
             #     ax.scatter3D(x[j], y[j], z[j], c=colors[truth[i]], alpha=j / len(x))
@@ -305,10 +311,18 @@ class DNALSTM(LSTMClassifier):
                 x, y, z = a[d][:, 0][:i+1], a[d][:, 1][:i+1], a[d][:, 2][:i+1]
                 line.set_data(x, y)
                 line.set_3d_properties(z)
-                line.set_color(colors[truth[d]])
+                if prediction[d]:
+                    line.set_color(colors[truth[d]])
+                else:
+                    line.set_color(colors_f[truth[d]])
+
                 pt.set_data(x[-1], y[-1])
                 pt.set_3d_properties(z[-1])
-                pt.set_color(colors[truth[d]])
+
+                if prediction[d]:
+                    pt.set_color(colors[truth[d]])
+                else:
+                    pt.set_color(colors_f[truth[d]])
 
             fig.canvas.draw()
             return lines + pts
@@ -318,7 +332,10 @@ class DNALSTM(LSTMClassifier):
         ax.view_init(45, 45)
         Writer = animation.writers['ffmpeg']
         writer = Writer(fps=15, metadata=dict(artist='Me'), bitrate=1800)
-        anim.save(str(self.n_units)+'.mp4', dpi=80, writer=writer)
+        path = './animation/'+self.indicator
+        if not os.path.exists(path):
+            os.makedirs(path)
+        anim.save(path+'/'+str(self.n_units)+'.mp4', dpi=80, writer=writer)
         # plt.show()
 
 
