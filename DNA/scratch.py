@@ -16,7 +16,7 @@ for j in range(30):
         # c = DNALSTM(b[i], n_classes=3, indicator=str(j))
         # c.train(save_model=True)
         # c.real_time_predict(model=p, sample=20,padding=100)
-        c.get_states(model=p, sample=20, padding=100)
+        c.dense_dots(model=p, sample=50, padding=60)
         # c.visualize(model=p, sample=100, padding=500)
         # visualize(x,y,28,i,28,model=p, padding=100)
 

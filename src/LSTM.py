@@ -367,7 +367,7 @@ class DNALSTM(LSTMClassifier):
         truth = np.argmax(self.y_test[:sample], axis=1) if test \
             else np.argmax(self.y_train[:sample], axis=1)
         model = load_model(model) if model else self.model
-        # self.build_models(model)
+        self.build_models(model)
 
         # build new model
         inputs1 = Input(shape=(max(padding, self.time_steps), self.n_inputs))
@@ -378,8 +378,56 @@ class DNALSTM(LSTMClassifier):
 
         for i in range(sample):
             hid, _, cell = lstm_model.predict(np.array(x[i].reshape((-1, max(self.time_steps, padding), self.n_inputs))))
-            res = [self.splice.x_raw_test[i], truth[i]]+[tuple(float('%.3f' % x) for x in y) for y in hid[0]]
+            res = [self.splice.x_raw_test[i], truth[i]]
+            states = [tuple(float('%.3f' % x) for x in y) for y in hid[0]]
+            a = self.make_prediction(np.reshape(hid[0][self.time_steps-1], (-1, self.n_units)))
+            res+=[a[0], states[self.time_steps-1]]
             print(res)
+
+    def dense_dots(self,model=None,test=True, sample=100, padding=None):
+        if not self._data_loaded:
+            self.__load_data()
+
+        x = self.x_test[:sample] if test else self.x_train[:sample]
+        if padding and padding>self.time_steps:
+            x = np.hstack((x,np.zeros((len(x), padding-self.time_steps, self.n_inputs))))
+        truth = np.argmax(self.y_test[:sample], axis=1) if test \
+            else np.argmax(self.y_train[:sample], axis=1)
+        model = load_model(model) if model else self.model
+        self.build_models(model)
+
+        # build new model
+        inputs1 = Input(shape=(max(padding, self.time_steps), self.n_inputs))
+        lstm1, state_h, state_c = LSTM(self.n_units, return_sequences=True, return_state=True)(inputs1)
+        lstm_model = Model(inputs=inputs1, outputs=[lstm1, state_h, state_c])
+        weights = model.layers[0].get_weights()
+        lstm_model.layers[-1].set_weights(weights)
+
+        first = []
+        second = []
+        third = []
+
+        for i in range(sample):
+            hid, _, cell = lstm_model.predict(np.array(x[i].reshape((-1, max(self.time_steps, padding), self.n_inputs))))
+            res = [self.splice.x_raw_test[i], truth[i]]
+            states = [tuple(float('%.3f' % x) for x in y) for y in hid[0]]
+            for j in range(max(padding, self.time_steps)):
+                a = self.make_prediction(np.reshape(hid[0][j], (-1, self.n_units)))[0]
+                res+=[tuple([a, states[j]])]
+            print(res)
+            for j in range(2,len(res)):
+                if res[j][0] == 0:
+                    first += [hid[0][j-2]]
+                if res[j][0] == 1:
+                    second += [hid[0][j-2]]
+                if res[j][0] == 2:
+                    third += [hid[0][j-2]]
+
+        np.savetxt('./points/'+str(self.n_units)+'_0.csv', np.array(first), delimiter=',')
+        np.savetxt('./points/'+str(self.n_units)+'_1.csv', np.array(second), delimiter=',')
+        np.savetxt('./points/'+str(self.n_units)+'_2.csv', np.array(third), delimiter=',')
+
+
 
     def visualize(self, model=None, test=True, sample=400, padding=1000):
         if not self._data_loaded:
