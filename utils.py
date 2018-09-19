@@ -56,6 +56,28 @@ class Data(object):
         plt.show()
 
 
+class ReduceMNIST:
+    def __init__(self, n_class=3):
+        self.x_train = []
+        self.x_test = []
+        self.y_train = []
+        self.y_test = []
+        self.n_class = n_class
+        self.mnist = input_data.read_data_sets("mnist", one_hot=True)
+        self.gen()
+
+    def gen(self):
+        for i in range(len(self.mnist.train.labels)):
+            if sum(self.mnist.train.labels[i][:self.n_class])>0:
+                self.x_train+=[self.mnist.train.images[i].reshape((28, 28))]
+                self.y_train+=[self.mnist.train.labels[i][:self.n_class]]
+
+        for i in range(len(self.mnist.test.labels)):
+            if sum(self.mnist.test.labels[i][:self.n_class])>0:
+                self.x_test+=[self.mnist.test.images[i].reshape((28, 28))]
+                self.y_test+=[self.mnist.test.labels[i][:self.n_class]]
+
+
 class Splice:
     def __init__(self,
                  p, n_class=2):
@@ -136,8 +158,7 @@ class Splice:
 
 
 if __name__=="__main__":
-    s = Splice('splice.csv')
-    print(s.train['x'].shape, s.test['y'].shape)
 
+    pass
 
 

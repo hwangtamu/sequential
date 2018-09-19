@@ -13,7 +13,7 @@ Resources:
 import sys, os
 
 from keras.models import Sequential, Model
-from keras.layers import LSTM, Dense
+from keras.layers import LSTM, Dense, Input
 from keras.models import load_model
 import numpy as np
 import matplotlib.pyplot as plt
@@ -22,7 +22,7 @@ from mpl_toolkits import mplot3d
 from matplotlib import animation
 from matplotlib import cm
 from tensorflow.examples.tutorials.mnist import input_data
-from utils import Splice
+from utils import Splice, ReduceMNIST
 
 
 class LSTMClassifier(object):
@@ -99,6 +99,7 @@ class LSTMClassifier(object):
         model = load_model(model) if model else self.model
         test_loss = model.evaluate(x, y)
         print(test_loss)
+        return test_loss
 
     def get_hidden_states(self,
                           x,
@@ -111,7 +112,7 @@ class LSTMClassifier(object):
         for i in range(samples):
             t = self.lstm_model.predict(np.array(x[i].reshape((-1, step, self.n_inputs))))
             hidden_states += [t]
-        return hidden_states
+        return np.array(hidden_states)
 
 
 class MnistLSTM(LSTMClassifier):
@@ -120,25 +121,32 @@ class MnistLSTM(LSTMClassifier):
                                 time_steps=28,
                                 n_units=n_units,
                                 n_inputs=28,
-                                n_classes=10,
+                                n_classes=3,
                                 n_epochs=20)
 
     def __load_data(self):
-        self.load_data('mnist')
-
-        x_train = [x.reshape((-1, self.time_steps, self.n_inputs)) for x in self.mnist.train.images]
-        self.x_train = np.array(x_train).reshape((-1, self.time_steps, self.n_inputs))
-
-        x_test = [x.reshape((-1, self.time_steps, self.n_inputs)) for x in self.mnist.test.images]
-        self.x_test = np.array(x_test).reshape((-1, self.time_steps, self.n_inputs))
+        # self.load_data('mnist')
+        #
+        # x_train = [x.reshape((-1, self.time_steps, self.n_inputs)) for x in self.mnist.train.images]
+        # self.x_train = np.array(x_train).reshape((-1, self.time_steps, self.n_inputs))
+        # self.y_train = np.array(self.mnist.train.labels)
+        #
+        # x_test = [x.reshape((-1, self.time_steps, self.n_inputs)) for x in self.mnist.test.images]
+        # self.x_test = np.array(x_test).reshape((-1, self.time_steps, self.n_inputs))
+        # self.y_test = np.array(self.mnist.test.labels)
+        r = ReduceMNIST()
+        self.x_train = np.array(r.x_train)
+        self.x_test = np.array(r.x_test)
+        self.y_train = np.array(r.y_train)
+        self.y_test = np.array(r.y_test)
 
     def train(self, save_model=False):
         if not self._data_loaded:
             self.__load_data()
 
         self.train_model(self.x_train,
-                         self.mnist.train.labels,
-                         p="./saved_model/lstm-mnist"+str(self.n_units)+".h5",
+                         self.y_train,
+                         p="./saved_model/lstm-mnist_"+str(self.n_units)+".h5",
                          save_model=save_model)
 
     def evaluate(self, model=None):
@@ -150,7 +158,7 @@ class MnistLSTM(LSTMClassifier):
         if not self._data_loaded:
             self.__load_data()
 
-        self.eval_model(self.x_test, self.mnist.test.labels, model=model)
+        return self.eval_model(self.x_test, self.y_test, model=model)
 
     def make_prediction(self, vec, num=None):
         output = self.dense_model.predict(vec)
@@ -170,8 +178,8 @@ class MnistLSTM(LSTMClassifier):
         if padding and padding>self.time_steps:
             x = np.hstack((x,np.zeros((len(x), padding-self.time_steps, self.n_inputs))))
 
-        truth = np.argmax(self.mnist.test.labels[:sample], axis=1) if test \
-            else np.argmax(self.mnist.train.labels[:sample], axis=1)
+        truth = np.argmax(self.y_test[:sample], axis=1) if test \
+            else np.argmax(self.y_train[:sample], axis=1)
 
         model = load_model(model) if model else self.model
         self.build_models(model)
@@ -186,81 +194,7 @@ class MnistLSTM(LSTMClassifier):
                     stdout += [tuple([res, float('%.3f' % out)])]
             print(stdout)
 
-
-class DNALSTM(LSTMClassifier):
-    def __init__(self, n_units, n_classes, indicator):
-        self.indicator = indicator
-        LSTMClassifier.__init__(self,
-                                time_steps=60,
-                                n_units=n_units,
-                                n_inputs=4,
-                                n_classes=n_classes,
-                                n_epochs=100)
-
-    def __load_data(self):
-        self.load_data('dna')
-        self.x_train = self.splice.train['x']
-        self.x_test = self.splice.test['x']
-        self.y_train = self.splice.train['y']
-        self.y_test = self.splice.test['y']
-
-    def train(self, save_model=False):
-        if not self._data_loaded:
-            self.__load_data()
-
-        self.train_model(self.x_train,
-                         self.y_train,
-                         p="./saved_model/lstm-dna_"+self.indicator+"_"+str(self.n_classes)+"_"+str(self.n_units)+".h5",
-                         save_model=save_model)
-
-    def evaluate(self, model=None):
-        if self._trained == False and model == None:
-            errmsg = "[!] Error: classifier wasn't trained or classifier path is not precised."
-            print(errmsg, file=sys.stderr)
-            sys.exit(0)
-
-        if not self._data_loaded:
-            self.__load_data()
-
-        self.eval_model(self.x_test, self.y_test, model=model)
-
-    def make_prediction(self, vec, num=None):
-        output = self.dense_model.predict(vec)
-        if num == None:
-            output = [max(x) for x in output]
-        else:
-            output = [x[num] for x in output]
-        result = self.dense_model.predict_classes(vec)
-        return result[0], output[0]
-
-    def real_time_predict(self, model=None, test=True, sample=100, padding=None, output_range=None):
-        if not self._data_loaded:
-            self.__load_data()
-
-        x = self.x_test[:sample] if test else self.x_train[:sample]
-
-        if padding and padding>self.time_steps:
-            x = np.hstack((x,np.zeros((len(x), padding-self.time_steps, self.n_inputs))))
-        truth = np.argmax(self.y_test[:sample], axis=1) if test \
-            else np.argmax(self.y_train[:sample], axis=1)
-        model = load_model(model) if model else self.model
-        self.build_models(model)
-
-        hidden_states = self.get_hidden_states(x, samples=sample, padding=padding)
-        for i in range(sample):
-            stdout = []
-            for j in range(max(padding,self.time_steps)):
-                res, out = self.make_prediction(np.reshape(hidden_states[i][0][j], (-1, self.n_units)))
-                _out = self.dense_model.predict(np.reshape(hidden_states[i][0][j], (-1, self.n_units)))
-                if j in output_range:
-                    #stdout += [tuple([res, float('%.3f' % out)])]
-                    stdout+=[tuple([float('%.3f' % x) for x in _out[0]])]
-                if j==self.time_steps:
-                    stdout = [res] + stdout
-            stdout = [self.splice.x_raw[i], truth[i]] + stdout
-            print(stdout)
-
-    def visualize(self, model=None, test=True, sample=100, padding=1000):
+    def visualize(self, model=None, test=True, sample=400, padding=1000):
         if not self._data_loaded:
             self.__load_data()
 
@@ -287,10 +221,20 @@ class DNALSTM(LSTMClassifier):
                    for _ in range(sample)], [])
         a = []
         prediction = []
+        t = f = 0
         for i in range(sample):
             vec = self.dense_model.predict(hidden_states[i][0])
-            prediction += [np.argmax(vec[self.time_steps]) == truth[i]]
-            a += [vec]
+            s = np.argmax(vec[self.time_steps]) == truth[i]
+            if s and t<15:
+                a += [vec]
+                prediction += [(s, truth[i])]
+                t+=1
+            if not s and f<15:
+                a += [vec]
+                prediction += [(s, truth[i])]
+                f+=1
+            if t>14 and f>14:
+                break
             # ax.plot3D(x, y, z, c=colors[truth[i]])
             # for j in range(len(x)):
             #     ax.scatter3D(x[j], y[j], z[j], c=colors[truth[i]], alpha=j / len(x))
@@ -311,18 +255,18 @@ class DNALSTM(LSTMClassifier):
                 x, y, z = a[d][:, 0][:i+1], a[d][:, 1][:i+1], a[d][:, 2][:i+1]
                 line.set_data(x, y)
                 line.set_3d_properties(z)
-                if prediction[d]:
-                    line.set_color(colors[truth[d]])
+                if prediction[d][0]:
+                    line.set_color(colors[prediction[d][1]])
                 else:
-                    line.set_color(colors_f[truth[d]])
+                    line.set_color(colors_f[prediction[d][1]])
 
                 pt.set_data(x[-1], y[-1])
                 pt.set_3d_properties(z[-1])
 
-                if prediction[d]:
-                    pt.set_color(colors[truth[d]])
+                if prediction[d][0]:
+                    pt.set_color(colors[prediction[d][1]])
                 else:
-                    pt.set_color(colors_f[truth[d]])
+                    pt.set_color(colors_f[prediction[d][1]])
 
             fig.canvas.draw()
             return lines + pts
@@ -330,15 +274,284 @@ class DNALSTM(LSTMClassifier):
         anim = animation.FuncAnimation(fig, animate, init_func=init,
                                        frames=500, interval=30, blit=True)
         ax.view_init(45, 45)
+        # plt.axis('off')
         Writer = animation.writers['ffmpeg']
         writer = Writer(fps=15, metadata=dict(artist='Me'), bitrate=1800)
-        path = './animation/'+self.indicator
+        path = './animation/lstm_cc'
+        if not os.path.exists(path):
+            os.makedirs(path)
+        anim.save(path+'/'+str(self.n_units)+'.mp4', dpi=80, writer=writer)
+        # plt.show()
+
+class DNALSTM(LSTMClassifier):
+    def __init__(self, n_units, n_classes, indicator):
+        self.indicator = indicator
+        LSTMClassifier.__init__(self,
+                                time_steps=60,
+                                n_units=n_units,
+                                n_inputs=4,
+                                n_classes=n_classes,
+                                n_epochs=100)
+
+    def __load_data(self):
+        self.load_data('dna')
+        self.x_train = self.splice.train['x']
+        self.x_test = self.splice.test['x']
+        self.y_train = self.splice.train['y']
+        self.y_test = self.splice.test['y']
+
+    def train(self, save_model=False):
+        if not self._data_loaded:
+            self.__load_data()
+
+        self.train_model(self.x_train,
+                         self.y_train,
+                         p="./saved_model/lstm-dna-mse_"+self.indicator+"_"+str(self.n_classes)+"_"+str(self.n_units)+".h5",
+                         save_model=save_model)
+
+    def evaluate(self, model=None):
+        if self._trained == False and model == None:
+            errmsg = "[!] Error: classifier wasn't trained or classifier path is not precised."
+            print(errmsg, file=sys.stderr)
+            sys.exit(0)
+
+        if not self._data_loaded:
+            self.__load_data()
+
+        return self.eval_model(self.x_test, self.y_test, model=model)
+
+    def make_prediction(self, vec, num=None):
+        output = self.dense_model.predict(vec)
+        if num == None:
+            output = [max(x) for x in output]
+        else:
+            output = [x[num] for x in output]
+        result = self.dense_model.predict_classes(vec)
+        return result[0], output[0]
+
+    def real_time_predict(self, model=None, test=True, sample=100, padding=None):
+        if not self._data_loaded:
+            self.__load_data()
+
+        x = self.x_test[:sample] if test else self.x_train[:sample]
+
+        if padding and padding>self.time_steps:
+            x = np.hstack((x,np.zeros((len(x), padding-self.time_steps, self.n_inputs))))
+        truth = np.argmax(self.y_test[:sample], axis=1) if test \
+            else np.argmax(self.y_train[:sample], axis=1)
+        model = load_model(model) if model else self.model
+        self.build_models(model)
+
+        hidden_states = self.get_hidden_states(x, samples=sample, padding=padding)
+        for i in range(sample):
+            stdout = []
+            for j in range(max(padding,self.time_steps)):
+                res, out = self.make_prediction(np.reshape(hidden_states[i][0][j], (-1, self.n_units)))
+                _out = self.dense_model.predict(np.reshape(hidden_states[i][0][j], (-1, self.n_units)))
+                #if j in output_range:
+                    #stdout += [tuple([res, float('%.3f' % out)])]
+                stdout+=[tuple([float('%.3f' % x) for x in _out[0]])]
+                # stdout+=[tuple([float('%.3f' % x) for x in hidden_states[i][0][j]])]
+                if j==self.time_steps:
+                    stdout = [res] + stdout
+            stdout = [self.splice.x_raw[i], truth[i]] + stdout
+            print(stdout)
+
+    def get_states(self, model=None,test=True, sample=100, padding=None):
+        if not self._data_loaded:
+            self.__load_data()
+
+        x = self.x_test[:sample] if test else self.x_train[:sample]
+        if padding and padding>self.time_steps:
+            x = np.hstack((x,np.zeros((len(x), padding-self.time_steps, self.n_inputs))))
+        truth = np.argmax(self.y_test[:sample], axis=1) if test \
+            else np.argmax(self.y_train[:sample], axis=1)
+        model = load_model(model) if model else self.model
+        # self.build_models(model)
+
+        # build new model
+        inputs1 = Input(shape=(max(padding, self.time_steps), self.n_inputs))
+        lstm1, state_h, state_c = LSTM(self.n_units, return_sequences=True, return_state=True)(inputs1)
+        lstm_model = Model(inputs=inputs1, outputs=[lstm1, state_h, state_c])
+        weights = model.layers[0].get_weights()
+        lstm_model.layers[-1].set_weights(weights)
+
+        for i in range(sample):
+            hid, _, cell = lstm_model.predict(np.array(x[i].reshape((-1, max(self.time_steps, padding), self.n_inputs))))
+            res = [self.splice.x_raw_test[i], truth[i]]+[tuple(float('%.3f' % x) for x in y) for y in hid[0]]
+            print(res)
+
+    def visualize(self, model=None, test=True, sample=400, padding=1000):
+        if not self._data_loaded:
+            self.__load_data()
+
+        x = self.x_test[:sample] if test else self.x_train[:sample]
+
+        if padding and padding>self.time_steps:
+            x = np.hstack((x,np.zeros((len(x), padding-self.time_steps, self.n_inputs))))
+
+        truth = np.argmax(self.y_test[:sample], axis=1) if test \
+            else np.argmax(self.y_train[:sample], axis=1)
+
+        model = load_model(model) if model else self.model
+        self.build_models(model)
+
+        hidden_states = self.get_hidden_states(x, samples=sample, padding=padding)
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        colors = ['b', 'r', 'g']
+        colors_f = ['c', 'm', 'y']
+        lines = sum([ax.plot([], [], [], '-', alpha=0.5)
+                     for _ in range(sample)], [])
+        pts = sum([ax.plot([], [], [], 'o')
+                   for _ in range(sample)], [])
+        a = []
+        prediction = []
+        t = f = 0
+        for i in range(sample):
+            vec = self.dense_model.predict(hidden_states[i][0])
+            s = np.argmax(vec[self.time_steps]) == truth[i]
+            if s and t<15:
+                a += [vec]
+                prediction += [(s, truth[i])]
+                t+=1
+            if not s and f<15:
+                a += [vec]
+                prediction += [(s, truth[i])]
+                f+=1
+            if t>14 and f>14:
+                break
+            # ax.plot3D(x, y, z, c=colors[truth[i]])
+            # for j in range(len(x)):
+            #     ax.scatter3D(x[j], y[j], z[j], c=colors[truth[i]], alpha=j / len(x))
+
+        def init():
+            for line, pt in zip(lines, pts):
+                line.set_data([], [])
+                line.set_3d_properties([])
+
+                pt.set_data([], [])
+                pt.set_3d_properties([])
+            return lines + pts
+
+        def animate(i):
+            i = (2 * i) % padding
+
+            for line, pt, d in zip(lines, pts, range(len(a))):
+                x, y, z = a[d][:, 0][:i+1], a[d][:, 1][:i+1], a[d][:, 2][:i+1]
+                line.set_data(x, y)
+                line.set_3d_properties(z)
+                if prediction[d][0]:
+                    line.set_color(colors[prediction[d][1]])
+                else:
+                    line.set_color(colors_f[prediction[d][1]])
+
+                pt.set_data(x[-1], y[-1])
+                pt.set_3d_properties(z[-1])
+
+                if prediction[d][0]:
+                    pt.set_color(colors[prediction[d][1]])
+                else:
+                    pt.set_color(colors_f[prediction[d][1]])
+
+            fig.canvas.draw()
+            return lines + pts
+
+        anim = animation.FuncAnimation(fig, animate, init_func=init,
+                                       frames=500, interval=30, blit=True)
+        ax.view_init(45, 45)
+        # plt.axis('off')
+        Writer = animation.writers['ffmpeg']
+        writer = Writer(fps=15, metadata=dict(artist='Me'), bitrate=1800)
+        path = './animation/'+self.indicator+'_mse'
         if not os.path.exists(path):
             os.makedirs(path)
         anim.save(path+'/'+str(self.n_units)+'.mp4', dpi=80, writer=writer)
         # plt.show()
 
 
+# build_model before calling visualize
+def visualize(x,
+              y,
+              n_inputs,
+              n_units,
+              time_steps,
+              indicator='',
+              model=None,
+              sample=100,
+              padding=1000):
 
+    x = np.array(x[:sample])
+    y = np.array(y[:sample])
 
+    if padding and padding>time_steps:
+        x = np.hstack((x, np.zeros((len(x), padding-time_steps, n_inputs))))
 
+    truth = np.argmax(y[:sample], axis=1)
+
+    model = load_model(model)
+    # model.build_models(model)
+    hidden_states = model.get_hidden_states(x, samples=sample, padding=padding)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    colors = ['b', 'r', 'g']
+    colors_f = ['c', 'm', 'y']
+    lines = sum([ax.plot([], [], [], '-', alpha=0.5)
+                 for _ in range(sample)], [])
+    pts = sum([ax.plot([], [], [], 'o')
+               for _ in range(sample)], [])
+    a = []
+    prediction = []
+    for i in range(sample):
+        vec = model.dense_model.predict(hidden_states[i][0])
+        prediction += [np.argmax(vec[time_steps]) == truth[i]]
+        a += [vec]
+        # ax.plot3D(x, y, z, c=colors[truth[i]])
+        # for j in range(len(x)):
+        #     ax.scatter3D(x[j], y[j], z[j], c=colors[truth[i]], alpha=j / len(x))
+
+    def init():
+        for line, pt in zip(lines, pts):
+            line.set_data([], [])
+            line.set_3d_properties([])
+
+            pt.set_data([], [])
+            pt.set_3d_properties([])
+        return lines + pts
+
+    def animate(i):
+        i = (2 * i) % padding
+
+        for line, pt, d in zip(lines, pts, range(len(a))):
+            x, y, z = a[d][:, 0][:i+1], a[d][:, 1][:i+1], a[d][:, 2][:i+1]
+            line.set_data(x, y)
+            line.set_3d_properties(z)
+            if prediction[d]:
+                line.set_color(colors[truth[d]])
+            else:
+                line.set_color(colors_f[truth[d]])
+
+            pt.set_data(x[-1], y[-1])
+            pt.set_3d_properties(z[-1])
+
+            if prediction[d]:
+                pt.set_color(colors[truth[d]])
+            else:
+                pt.set_color(colors_f[truth[d]])
+
+        fig.canvas.draw()
+        return lines + pts
+
+    anim = animation.FuncAnimation(fig, animate, init_func=init,
+                                   frames=500, interval=30, blit=True)
+    ax.view_init(45, 45)
+    # plt.axis('off')
+    Writer = animation.writers['ffmpeg']
+    writer = Writer(fps=15, metadata=dict(artist='Me'), bitrate=1800)
+    path = './animation/'+indicator+'_mse'
+    if not os.path.exists(path):
+        os.makedirs(path)
+    anim.save(path+'/'+str(n_units)+'.mp4', dpi=80, writer=writer)
+    # plt.show()

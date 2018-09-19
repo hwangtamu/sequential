@@ -20,10 +20,10 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 
 class MnistLSTMClassifier(object):
-    def __init__(self):
+    def __init__(self, i):
         # Classifier
         self.time_steps = 28  # timesteps to unroll
-        self.n_units = 8  # hidden LSTM units
+        self.n_units = i  # hidden LSTM units
         self.n_inputs = 28  # rows of 28 pixels (an mnist img is 28x28)
         self.n_classes = 10  # mnist classes/labels (0-9)
         self.batch_size = 128  # Size of each batch
