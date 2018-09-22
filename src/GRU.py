@@ -1,11 +1,11 @@
 
-""" LSTM Network.
-A RNN Network (LSTM) implementation example using Keras.
+""" gru Network.
+A RNN Network (gru) implementation example using Keras.
 This example is using the MNIST handwritten digits dataset (http://yann.lecun.com/exdb/mnist/)
 
 Resources:
-    [Long Short Term Memory](http://deeplearning.cs.cmu.edu/pdfs/Hochreiter97_lstm.pdf)
-    [Understanding LSTMs](http://colah.github.io/posts/2015-08-Understanding-LSTMs/)
+    [Long Short Term Memory](http://deeplearning.cs.cmu.edu/pdfs/Hochreiter97_gru.pdf)
+    [Understanding grus](http://colah.github.io/posts/2015-08-Understanding-grus/)
     [MNIST Dataset](http://yann.lecun.com/exdb/mnist/)
 """
 
@@ -13,7 +13,7 @@ Resources:
 import sys, os, random
 
 from keras.models import Sequential, Model
-from keras.layers import LSTM, Dense, Input
+from keras.layers import GRU, Dense, Input
 from keras.models import load_model
 import numpy as np
 import matplotlib.pyplot as plt
@@ -25,7 +25,7 @@ from tensorflow.examples.tutorials.mnist import input_data
 from utils import Splice, ReduceMNIST
 
 
-class LSTMClassifier(object):
+class GRUClassifier(object):
     def __init__(self,
                  time_steps,
                  n_units,
@@ -44,7 +44,7 @@ class LSTMClassifier(object):
         # Internal
         self._data_loaded = False
         self._trained = False
-        self.lstm_model, self.dense_model = None, None
+        self.gru_model, self.dense_model = None, None
 
     def load_data(self, task):
         if task=='mnist':
@@ -58,7 +58,7 @@ class LSTMClassifier(object):
                      loss='categorical_crossentropy',
                      metric='accuracy'):
         self.model = Sequential()
-        self.model.add(LSTM(self.n_units, input_shape=(self.time_steps, self.n_inputs)))
+        self.model.add(GRU(self.n_units, input_shape=(self.time_steps, self.n_inputs)))
         self.model.add(Dense(self.n_classes, activation='softmax'))
 
         self.model.compile(loss=loss,
@@ -81,16 +81,16 @@ class LSTMClassifier(object):
         if not model:
             model = self.model
 
-        lstm_model = Sequential()
-        lstm_model.add(LSTM(self.n_units, input_shape=(None, self.n_inputs), return_sequences=True))
+        gru_model = Sequential()
+        gru_model.add(GRU(self.n_units, input_shape=(None, self.n_inputs), return_sequences=True))
         weights = model.layers[0].get_weights()
-        lstm_model.layers[0].set_weights(weights)
+        gru_model.layers[0].set_weights(weights)
 
         dense_model = Sequential()
         dense_model.add(Dense(self.n_classes, input_dim=self.n_units, activation='softmax'))
         weights = model.layers[-1].get_weights()
         dense_model.layers[0].set_weights(weights)
-        self.lstm_model, self.dense_model = lstm_model, dense_model
+        self.gru_model, self.dense_model = gru_model, dense_model
 
     def eval_model(self,
                    x,
@@ -110,14 +110,14 @@ class LSTMClassifier(object):
         hidden_states = []
 
         for i in range(samples):
-            t = self.lstm_model.predict(np.array(x[i].reshape((-1, step, self.n_inputs))))
+            t = self.gru_model.predict(np.array(x[i].reshape((-1, step, self.n_inputs))))
             hidden_states += [t]
         return np.array(hidden_states)
 
 
-class MnistLSTM(LSTMClassifier):
+class MnistGRU(GRUClassifier):
     def __init__(self, n_units):
-        LSTMClassifier.__init__(self,
+        GRUClassifier.__init__(self,
                                 time_steps=28,
                                 n_units=n_units,
                                 n_inputs=28,
@@ -146,7 +146,7 @@ class MnistLSTM(LSTMClassifier):
 
         self.train_model(self.x_train,
                          self.y_train,
-                         p="./saved_model/lstm-mnist_"+str(self.n_units)+".h5",
+                         p="./saved_model/gru-mnist_"+str(self.n_units)+".h5",
                          save_model=save_model)
 
     def evaluate(self, model=None):
@@ -277,16 +277,16 @@ class MnistLSTM(LSTMClassifier):
         # plt.axis('off')
         Writer = animation.writers['ffmpeg']
         writer = Writer(fps=15, metadata=dict(artist='Me'), bitrate=1800)
-        path = './animation/lstm_cc'
+        path = './animation/gru_cc'
         if not os.path.exists(path):
             os.makedirs(path)
         anim.save(path+'/'+str(self.n_units)+'.mp4', dpi=80, writer=writer)
         # plt.show()
 
-class DNALSTM(LSTMClassifier):
+class DNAGRU(GRUClassifier):
     def __init__(self, n_units, n_classes, indicator):
         self.indicator = indicator
-        LSTMClassifier.__init__(self,
+        GRUClassifier.__init__(self,
                                 time_steps=60,
                                 n_units=n_units,
                                 n_inputs=4,
@@ -306,7 +306,7 @@ class DNALSTM(LSTMClassifier):
 
         self.train_model(self.x_train,
                          self.y_train,
-                         p="./saved_model/lstm-dna-mse_"+self.indicator+"_"+str(self.n_classes)+"_"+str(self.n_units)+".h5",
+                         p="./saved_model/gru-dna-mse_"+self.indicator+"_"+str(self.n_classes)+"_"+str(self.n_units)+".h5",
                          save_model=save_model)
 
     def evaluate(self, model=None):
@@ -371,13 +371,13 @@ class DNALSTM(LSTMClassifier):
 
         # build new model
         inputs1 = Input(shape=(max(padding, self.time_steps), self.n_inputs))
-        lstm1, state_h, state_c = LSTM(self.n_units, return_sequences=True, return_state=True)(inputs1)
-        lstm_model = Model(inputs=inputs1, outputs=[lstm1, state_h, state_c])
+        gru1, state_h, state_c = GRU(self.n_units, return_sequences=True, return_state=True)(inputs1)
+        gru_model = Model(inputs=inputs1, outputs=[gru1, state_h, state_c])
         weights = model.layers[0].get_weights()
-        lstm_model.layers[-1].set_weights(weights)
+        gru_model.layers[-1].set_weights(weights)
 
         for i in range(sample):
-            hid, _, cell = lstm_model.predict(np.array(x[i].reshape((-1, max(self.time_steps, padding), self.n_inputs))))
+            hid, _, cell = gru_model.predict(np.array(x[i].reshape((-1, max(self.time_steps, padding), self.n_inputs))))
             res = [self.splice.x_raw_test[i], truth[i]]
             states = [tuple(float('%.3f' % x) for x in y) for y in hid[0]]
             a = self.make_prediction(np.reshape(hid[0][self.time_steps-1], (-1, self.n_units)))
@@ -398,17 +398,17 @@ class DNALSTM(LSTMClassifier):
 
         # build new model
         inputs1 = Input(shape=(max(padding, self.time_steps), self.n_inputs))
-        lstm1, state_h, state_c = LSTM(self.n_units, return_sequences=True, return_state=True)(inputs1)
-        lstm_model = Model(inputs=inputs1, outputs=[lstm1, state_h, state_c])
+        gru1, state_h, state_c = GRU(self.n_units, return_sequences=True, return_state=True)(inputs1)
+        gru_model = Model(inputs=inputs1, outputs=[gru1, state_h, state_c])
         weights = model.layers[0].get_weights()
-        lstm_model.layers[-1].set_weights(weights)
+        gru_model.layers[-1].set_weights(weights)
 
         first = []
         second = []
         third = []
 
         for i in range(sample):
-            hid, _, cell = lstm_model.predict(np.array(x[i].reshape((-1, max(self.time_steps, padding), self.n_inputs))))
+            hid, _, cell = gru_model.predict(np.array(x[i].reshape((-1, max(self.time_steps, padding), self.n_inputs))))
             res = [self.splice.x_raw_test[i], truth[i]]
             states = [tuple(float('%.3f' % x) for x in y) for y in hid[0]]
             for j in range(max(padding, self.time_steps)):
@@ -463,13 +463,13 @@ class DNALSTM(LSTMClassifier):
         self.build_models(model)
 
         inputs1 = Input(shape=(self.time_steps, self.n_inputs))
-        lstm1, state_h, state_c = LSTM(self.n_units, return_sequences=True, return_state=True)(inputs1)
-        lstm_model = Model(inputs=inputs1, outputs=[lstm1, state_h, state_c])
+        gru1, state_h, state_c = GRU(self.n_units, return_sequences=True, return_state=True)(inputs1)
+        gru_model = Model(inputs=inputs1, outputs=[gru1, state_h, state_c])
         weights = model.layers[0].get_weights()
-        lstm_model.layers[-1].set_weights(weights)
+        gru_model.layers[-1].set_weights(weights)
 
         hidden_states = self.get_hidden_states([self.x_test[id]], samples=1, padding=0)
-        hid, _, cell = lstm_model.predict(np.array(self.x_test[id].reshape((-1, self.time_steps, self.n_inputs))))
+        hid, _, cell = gru_model.predict(np.array(self.x_test[id].reshape((-1, self.time_steps, self.n_inputs))))
 
         print(hid.shape, cell.shape)
 
@@ -568,89 +568,3 @@ class DNALSTM(LSTMClassifier):
             os.makedirs(path)
         anim.save(path+'/'+str(self.n_units)+'.mp4', dpi=80, writer=writer)
         # plt.show()
-
-
-# build_model before calling visualize
-def visualize(x,
-              y,
-              n_inputs,
-              n_units,
-              time_steps,
-              indicator='',
-              model=None,
-              sample=100,
-              padding=1000):
-
-    x = np.array(x[:sample])
-    y = np.array(y[:sample])
-
-    if padding and padding>time_steps:
-        x = np.hstack((x, np.zeros((len(x), padding-time_steps, n_inputs))))
-
-    truth = np.argmax(y[:sample], axis=1)
-
-    model = load_model(model)
-    # model.build_models(model)
-    hidden_states = model.get_hidden_states(x, samples=sample, padding=padding)
-
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    colors = ['b', 'r', 'g']
-    colors_f = ['c', 'm', 'y']
-    lines = sum([ax.plot([], [], [], '-', alpha=0.5)
-                 for _ in range(sample)], [])
-    pts = sum([ax.plot([], [], [], 'o')
-               for _ in range(sample)], [])
-    a = []
-    prediction = []
-    for i in range(sample):
-        vec = model.dense_model.predict(hidden_states[i][0])
-        prediction += [np.argmax(vec[time_steps]) == truth[i]]
-        a += [vec]
-        # ax.plot3D(x, y, z, c=colors[truth[i]])
-        # for j in range(len(x)):
-        #     ax.scatter3D(x[j], y[j], z[j], c=colors[truth[i]], alpha=j / len(x))
-
-    def init():
-        for line, pt in zip(lines, pts):
-            line.set_data([], [])
-            line.set_3d_properties([])
-
-            pt.set_data([], [])
-            pt.set_3d_properties([])
-        return lines + pts
-
-    def animate(i):
-        i = (2 * i) % padding
-
-        for line, pt, d in zip(lines, pts, range(len(a))):
-            x, y, z = a[d][:, 0][:i+1], a[d][:, 1][:i+1], a[d][:, 2][:i+1]
-            line.set_data(x, y)
-            line.set_3d_properties(z)
-            if prediction[d]:
-                line.set_color(colors[truth[d]])
-            else:
-                line.set_color(colors_f[truth[d]])
-
-            pt.set_data(x[-1], y[-1])
-            pt.set_3d_properties(z[-1])
-
-            if prediction[d]:
-                pt.set_color(colors[truth[d]])
-            else:
-                pt.set_color(colors_f[truth[d]])
-
-        fig.canvas.draw()
-        return lines + pts
-
-    anim = animation.FuncAnimation(fig, animate, init_func=init,
-                                   frames=500, interval=30, blit=True)
-    ax.view_init(45, 45)
-    # plt.axis('off')
-    Writer = animation.writers['ffmpeg']
-    writer = Writer(fps=15, metadata=dict(artist='Me'), bitrate=1800)
-    path = './animation/'+indicator+'_mse'
-    if not os.path.exists(path):
-        os.makedirs(path)
-    anim.save(path+'/'+str(n_units)+'.mp4', dpi=80, writer=writer)
-    # plt.show()
