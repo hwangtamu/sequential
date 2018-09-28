@@ -463,19 +463,28 @@ class DNAGRU(GRUClassifier):
         self.build_models(model)
 
         inputs1 = Input(shape=(self.time_steps, self.n_inputs))
-        gru1, state_h, state_c = GRU(self.n_units, return_sequences=True, return_state=True)(inputs1)
-        gru_model = Model(inputs=inputs1, outputs=[gru1, state_h, state_c])
+        gru1, state_h = GRU(self.n_units, return_sequences=True, return_state=True)(inputs1)
+        gru_model = Model(inputs=inputs1, outputs=[gru1, state_h])
         weights = model.layers[0].get_weights()
         gru_model.layers[-1].set_weights(weights)
 
         hidden_states = self.get_hidden_states([self.x_test[id]], samples=1, padding=0)
-        hid, _, cell = gru_model.predict(np.array(self.x_test[id].reshape((-1, self.time_steps, self.n_inputs))))
+        hid, _ = gru_model.predict(np.array(self.x_test[id].reshape((-1, self.time_steps, self.n_inputs))))
 
-        print(hid.shape, cell.shape)
+        # print(hid.shape, cell.shape)
+        plt.clf()
 
-        # title = self.splice.x_raw_test[id]
-        # plt.imshow(np.transpose(hidden_states[0][0]), cmap='coolwarm', interpolation='nearest',aspect='auto')
-        # plt.title(title)
+        title = self.splice.x_raw_test[id]
+        plt.imshow(np.transpose(hidden_states[0][0]), cmap='coolwarm', interpolation='nearest',aspect='auto')
+        plt.colorbar()
+        plt.title(title)
+        #plt.tight_layout()
+
+        path = './figures/gru/'
+        if not os.path.exists(path):
+            os.makedirs(path)
+
+        plt.savefig(path+self.indicator+'-'+str(self.n_units)+'_'+str(id)+'.png')
         # plt.show()
 
 

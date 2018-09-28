@@ -427,7 +427,7 @@ class DNALSTM(LSTMClassifier):
         np.savetxt('./points/'+str(self.n_units)+'_1.csv', np.array(second), delimiter=',')
         np.savetxt('./points/'+str(self.n_units)+'_2.csv', np.array(third), delimiter=',')
 
-    def lesion_eval(self, model=None, acuity=None):
+    def lesion_eval(self, model=None, acuity=None, n=0, rand=False):
         if not self._data_loaded:
             self.__load_data()
         if not acuity:
@@ -435,7 +435,9 @@ class DNALSTM(LSTMClassifier):
         model = load_model(model) if model else self.model
         self.build_models(model)
 
-        lesion = random.sample(range(self.n_units), acuity)
+        if rand: lesion = random.sample(range(self.n_units), acuity)
+        if not rand and acuity==1: lesion = n
+
         hidden_states = self.get_hidden_states(self.x_test, samples=len(self.x_test), padding=0)
         print('remove units: '+str(lesion))
         a, b, c, d = [], [], 0, 0
@@ -452,7 +454,7 @@ class DNALSTM(LSTMClassifier):
                     c+=1
                 if self.y_test[i][res_]!=1:
                     d+=1
-                print(self.splice.x_raw_test[i],np.argmax(self.y_test[i]), res, res_)
+                # print(self.splice.x_raw_test[i],np.argmax(self.y_test[i]), res, res_)
         print(c/len(self.y_test), d/len(self.y_test))
 
     def act_vis(self, model=None, id=0):
