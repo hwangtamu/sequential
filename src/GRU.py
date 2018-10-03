@@ -484,8 +484,8 @@ class DNAGRU(GRUClassifier):
         if not os.path.exists(path):
             os.makedirs(path)
 
-        plt.savefig(path+self.indicator+'-'+str(self.n_units)+'_'+str(id)+'.png')
-        # plt.show()
+        # plt.savefig(path+self.indicator+'-'+str(self.n_units)+'_'+str(id)+'.png')
+        plt.show()
 
 
 

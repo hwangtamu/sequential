@@ -20,7 +20,9 @@ b = [4,6,8,10,12,16,32,64,128]
 
 p="./saved_model/lstm-dna-mse_"+'0'+"_3_128.h5"
 c = DNALSTM(128,3,'0')
-for i in range(128):
-    c.lesion_eval(model=p, acuity=1, n=i)
+c.get_corr(model=p)
+# c.lesion_eval(model=p, acuity=1, n=[2, 68, 80, 82, 97, 115, 96, 93, 81, 64, 103])
+# for i in range(128):
+#     c.lesion_eval(model=p, acuity=1, n=i)
 # for i in range(300):
 #     c.act_vis(model=p, id=i)

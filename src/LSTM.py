@@ -23,7 +23,9 @@ from matplotlib import animation
 from matplotlib import cm
 from tensorflow.examples.tutorials.mnist import input_data
 from utils import Splice, ReduceMNIST
+from collections import Counter
 
+np.set_printoptions(formatter={'float': lambda x: "{0:0.3f}".format(x)})
 
 class LSTMClassifier(object):
     def __init__(self,
@@ -454,7 +456,7 @@ class DNALSTM(LSTMClassifier):
                     c+=1
                 if self.y_test[i][res_]!=1:
                     d+=1
-                # print(self.splice.x_raw_test[i],np.argmax(self.y_test[i]), res, res_)
+                print(self.splice.x_raw_test[i],np.argmax(self.y_test[i]), res, res_)
         print(c/len(self.y_test), d/len(self.y_test))
 
     def act_vis(self, model=None, id=0):
@@ -480,6 +482,46 @@ class DNALSTM(LSTMClassifier):
         # plt.title(title)
         # plt.show()
 
+    def get_corr(self, model=None, test=True):
+        if not self._data_loaded:
+            self.__load_data()
+
+        x = self.x_test if test else self.x_train
+
+        model = load_model(model) if model else self.model
+        self.build_models(model)
+
+        inputs1 = Input(shape=(self.time_steps, self.n_inputs))
+        lstm1, state_h, state_c = LSTM(self.n_units, return_sequences=True, return_state=True)(inputs1)
+        lstm_model = Model(inputs=inputs1, outputs=[lstm1, state_h, state_c])
+        weights = model.layers[0].get_weights()
+        lstm_model.layers[-1].set_weights(weights)
+
+        hidden_states = self.get_hidden_states(x, samples=len(x), padding=0)
+
+        a = np.zeros((1,128))
+        for h in hidden_states:
+            corr = np.corrcoef(h[0].T)
+            a += corr[0]
+        print(np.sort(a/len(x)))
+        print(np.argsort(a))
+
+        hidden_states = self.get_hidden_states(self.x_train, samples=len(self.x_train), padding=0)
+
+        a = np.zeros((1, 128))
+        for h in hidden_states:
+            corr = np.corrcoef(h[0].T)
+            a += corr[0]
+        print(np.sort(a/len(self.x_train)))
+        print(np.argsort(a))
+
+        # print(hidden_states.shape)
+
+
+        # corr = np.corrcoef(hidden_states[0][0].T)
+        # plt.matshow(corr,cmap='coolwarm')
+        # plt.colorbar()
+        # plt.show()
 
 
     def visualize(self, model=None, test=True, sample=400, padding=1000):
